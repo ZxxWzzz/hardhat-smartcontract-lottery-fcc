@@ -17,12 +17,14 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     if (chainId == 31337) {
         vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock")
         //log(vrfCoordinatorV2Mock)
-        vrfCoordinatorV2Address = vrfCoordinatorV2Mock.address
+
+        vrfCoordinatorV2Address = await vrfCoordinatorV2Mock.getAddress()
+
         // log(vrfCoordinatorV2Address)
         const transactionResponse = await vrfCoordinatorV2Mock.createSubscription()
         const transactionReceipt = await transactionResponse.wait(1)
 
-        subscriptionId = transactionReceipt.events[0].args.subId
+        subscriptionId = transactionReceipt.logs[0].args.subId
         // Fund the subscription
         // Our mock makes it so we don't actually have to worry about sending fund
         await vrfCoordinatorV2Mock.fundSubscription(subscriptionId, FUND_AMOUNT)
