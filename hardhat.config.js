@@ -1,7 +1,9 @@
-require("@nomiclabs/hardhat-waffle")
+// require("@nomiclabs/hardhat-waffle")
 require("@nomiclabs/hardhat-etherscan")
+require("@nomicfoundation/hardhat-chai-matchers")
 require("hardhat-deploy")
 require("solidity-coverage")
+require("@nomiclabs/hardhat-ethers")
 require("hardhat-gas-reporter")
 require("hardhat-contract-sizer")
 require("dotenv").config()
@@ -43,5 +45,13 @@ module.exports = {
         defaultProvider: function () {
             return new ethers.providers.JsonRpcProvider()
         },
+    },
+
+    gasReporter: {
+        enabled: false,
+        currency: "USD",
+        outputFile: "gas-report.txt",
+        noColors: true,
+        // coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     },
 }
