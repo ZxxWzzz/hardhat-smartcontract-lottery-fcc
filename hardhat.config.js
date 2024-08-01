@@ -19,6 +19,7 @@ module.exports = {
     networks: {
         hardhat: {
             chainId: 31337,
+            // loggingEnabled: true,
         },
         localhost: {
             chainId: 31337,
