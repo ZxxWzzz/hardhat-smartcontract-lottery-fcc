@@ -18,6 +18,6 @@
     "solidity-coverage": "^0.8.12"
   },
   "dependencies": {
-    "@chainlink/contracts": "^0.8.0"
+    "@chainlink/contracts": "^1.2.0"
   }
 }

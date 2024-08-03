@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.19;
 
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
-// In the video, we use the following import statement, but newer versions of the Chainlink
-// contracts have a different file structure.
-// import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/interfaces/IVRFCoordinatorV2Plus.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
 import "hardhat/console.sol";
 
@@ -18,21 +16,17 @@ error Raffle__RaffleNotOpen();
 
 /**
  * @title A sample Raffle Contract
- * @author Patrick Collins
- * @notice This contract is for creating a sample raffle contract
- * @dev This implements the Chainlink VRF Version 2
+ * @dev This implements the Chainlink VRF Version 2.5
  */
-contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
+contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     /* Type declarations */
     enum RaffleState {
         OPEN,
         CALCULATING
     }
-    /* State variables */
-    // Chainlink VRF Variables
 
-    VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
-    uint64 private immutable i_subscriptionId;
+    /* State variables */
+    uint256 private immutable i_subscriptionId;
     bytes32 private immutable i_gasLane;
     uint32 private immutable i_callbackGasLimit;
     uint16 private constant REQUEST_CONFIRMATIONS = 3;
@@ -51,16 +45,14 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
     event RaffleEnter(address indexed player);
     event WinnerPicked(address indexed player);
 
-    /* Functions */
     constructor(
         address vrfCoordinatorV2,
-        uint64 subscriptionId,
-        bytes32 gasLane, // keyHash
+        uint256 subscriptionId,
+        bytes32 gasLane,
         uint256 interval,
         uint256 entranceFee,
         uint32 callbackGasLimit
-    ) VRFConsumerBaseV2(vrfCoordinatorV2) {
-        i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
+    ) VRFConsumerBaseV2Plus(vrfCoordinatorV2) {
         i_gasLane = gasLane;
         i_interval = interval;
         i_subscriptionId = subscriptionId;
@@ -71,8 +63,6 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
     }
 
     function enterRaffle() public payable {
-        // require(msg.value >= i_entranceFee, "Not enough value sent");
-        // require(s_raffleState == RaffleState.OPEN, "Raffle is not open");
         if (msg.value < i_entranceFee) {
             revert Raffle__SendMoreToEnterRaffle();
         }
@@ -80,38 +70,22 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
             revert Raffle__RaffleNotOpen();
         }
         s_players.push(payable(msg.sender));
-        // Emit an event when we update a dynamic array or mapping
-        // Named events with the function name reversed
         emit RaffleEnter(msg.sender);
     }
 
-    /**
-     * @dev This is the function that the Chainlink Keeper nodes call
-     * they look for `upkeepNeeded` to return True.
-     * the following should be true for this to return true:
-     * 1. The time interval has passed between raffle runs.
-     * 2. The lottery is open.
-     * 3. The contract has ETH.
-     * 4. Implicity, your subscription is funded with LINK.
-     */
     function checkUpkeep(
-        bytes memory /* checkData */
-    ) public view override returns (bool upkeepNeeded, bytes memory /* performData */) {
+        bytes memory
+    ) public view override returns (bool upkeepNeeded, bytes memory) {
         bool isOpen = RaffleState.OPEN == s_raffleState;
         bool timePassed = ((block.timestamp - s_lastTimeStamp) > i_interval);
         bool hasPlayers = s_players.length > 0;
         bool hasBalance = address(this).balance > 0;
         upkeepNeeded = (timePassed && isOpen && hasBalance && hasPlayers);
-        return (upkeepNeeded, "0x0"); // can we comment this out?
+        return (upkeepNeeded, "0x0");
     }
 
-    /**
-     * @dev Once `checkUpkeep` is returning `true`, this function is called
-     * and it kicks off a Chainlink VRF call to get a random winner.
-     */
-    function performUpkeep(bytes calldata /* performData */) external override {
+    function performUpkeep(bytes calldata) external override {
         (bool upkeepNeeded, ) = checkUpkeep("");
-        // require(upkeepNeeded, "Upkeep not needed");
         if (!upkeepNeeded) {
             revert Raffle__UpkeepNotNeeded(
                 address(this).balance,
@@ -120,24 +94,23 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
             );
         }
         s_raffleState = RaffleState.CALCULATING;
-        uint256 requestId = i_vrfCoordinator.requestRandomWords(
-            i_gasLane,
-            i_subscriptionId,
-            REQUEST_CONFIRMATIONS,
-            i_callbackGasLimit,
-            NUM_WORDS
-        );
-        // Quiz... is this redundant?
+        VRFV2PlusClient.RandomWordsRequest memory req = VRFV2PlusClient.RandomWordsRequest({
+            keyHash: i_gasLane,
+            subId: i_subscriptionId,
+            requestConfirmations: REQUEST_CONFIRMATIONS,
+            callbackGasLimit: i_callbackGasLimit,
+            numWords: NUM_WORDS,
+            extraArgs: VRFV2PlusClient._argsToBytes(
+                VRFV2PlusClient.ExtraArgsV1({nativePayment: false}) //use ETH to test
+            )
+        });
+        uint256 requestId = s_vrfCoordinator.requestRandomWords(req);
         emit RequestedRaffleWinner(requestId);
     }
 
-    /**
-     * @dev This is the function that Chainlink VRF node
-     * calls to send the money to the random winner.
-     */
     function fulfillRandomWords(
-        uint256,
-        /* requestId */ uint256[] memory randomWords
+        uint256 /*requestId*/,
+        uint256[] calldata randomWords
     ) internal override {
         // s_players size 10
         // randomNumber 202

@@ -12,7 +12,7 @@ const { assert, expect } = require("chai")
               deployer = (await getNamedAccounts()).deployer
               await deployments.fixture(["all"])
               raffle = await ethers.getContract("Raffle", deployer)
-              vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock", deployer)
+              vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2_5Mock", deployer)
               raffleEntranceFee = await raffle.getEntranceFee()
               interval = await raffle.getInterval()
           })
@@ -121,28 +121,33 @@ const { assert, expect } = require("chai")
                   assert.equal(raffleState.toString(), "1") // 0 = open, 1 = calculating
               })
           })
+
           describe("fulfillRandomWords", function () {
-              let raffleAddress
+              let raffleAddress, vrfCoordinatorV2MockAddress
+
               beforeEach(async function () {
                   await raffle.enterRaffle({ value: raffleEntranceFee })
                   await network.provider.send("evm_increaseTime", [Number(interval) + 1])
                   await network.provider.request({ method: "evm_mine", params: [] })
                   raffleAddress = await raffle.getAddress()
-                  //   console.log("raffleAddress: " + raffleAddress)
+                  vrfCoordinatorV2MockAddress = await vrfCoordinatorV2Mock.getAddress()
+
+                  const initialBalance = await ethers.provider.getBalance(
+                      vrfCoordinatorV2MockAddress,
+                  )
+                  console.log(`Initial VRFCoordinator Balance: ${initialBalance.toString()}`)
               })
               it("can only be called after performupkeep", async function () {
                   await expect(
                       vrfCoordinatorV2Mock.fulfillRandomWords(0, raffleAddress),
-                  ).to.be.revertedWith("nonexistent request")
+                  ).to.be.revertedWithCustomError(vrfCoordinatorV2Mock, "InvalidRequest")
                   await expect(
                       vrfCoordinatorV2Mock.fulfillRandomWords(1, raffleAddress),
-                  ).to.be.revertedWith("nonexistent request")
+                  ).to.be.revertedWithCustomError(vrfCoordinatorV2Mock, "InvalidRequest")
               })
 
               //Integration Test
               it("picks a winner, resets, and sends money", async function () {
-                  //   this.timeout(300000) // 增加超时设置，确保有足够时间完成测试
-
                   const additionalEntrances = 3 // to test
                   const startingIndex = 2
                   const accounts = await ethers.getSigners()
@@ -153,6 +158,7 @@ const { assert, expect } = require("chai")
                   const startingTimeStamp = await raffle.getLastTimeStamp()
 
                   console.log("Starting performUpkeep...")
+
                   const tx = await raffle.performUpkeep("0x")
                   const txReceipt = await tx.wait(1)
 
@@ -161,11 +167,16 @@ const { assert, expect } = require("chai")
 
                   // 获取正确的 requestId 日志
                   const requestId = txReceipt.logs[1].args.requestId
-                  console.log("performUpkeep done. Request ID:", requestId.toString())
+                  //   console.log("performUpkeep done. Request ID:", requestId.toString())
+
+                  let vrfCoordinatorBalance = await ethers.provider.getBalance(
+                      vrfCoordinatorV2MockAddress,
+                  )
+                  console.log("VRFCoordinator Balance:", vrfCoordinatorBalance.toString()) // 输出当前余额
 
                   await new Promise(async function (resolve, reject) {
                       raffle.once("WinnerPicked", async function () {
-                          console.log("Found the event!!!")
+                          //   console.log("Found the event!!!")
                           try {
                               const recentWinner = await raffle.getRecentWinner()
                               console.log("Recent winner:", recentWinner)
@@ -182,9 +193,9 @@ const { assert, expect } = require("chai")
                       })
 
                       try {
-                          console.log("Starting fulfillRandomWords...")
+                          //   console.log("Starting fulfillRandomWords...")
                           await vrfCoordinatorV2Mock.fulfillRandomWords(requestId, raffleAddress)
-                          console.log("fulfillRandomWords done.")
+                          //   console.log("fulfillRandomWords done.")
                       } catch (e) {
                           reject(e) // 捕获错误时调用 reject
                       }

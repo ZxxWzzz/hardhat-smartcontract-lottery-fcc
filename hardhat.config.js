@@ -31,7 +31,16 @@ module.exports = {
             chainId: 11155111,
         },
     },
-    solidity: "0.8.8",
+    solidity: {
+        compilers: [
+            {
+                version: "0.8.19",
+            },
+            {
+                version: "0.8.7",
+            },
+        ],
+    },
     namedAccounts: {
         deployer: {
             default: 0,

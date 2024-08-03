@@ -6,7 +6,7 @@ const {
 } = require("../helper-hardhat-config")
 const { verify } = require("../utils/verify")
 
-const FUND_AMOUNT = "1000000000000000000"
+const FUND_AMOUNT = "2000000000000000000" // 1 ETH
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy, log } = deployments
@@ -15,29 +15,28 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     let vrfCoordinatorV2Address, subscriptionId, vrfCoordinatorV2Mock
 
     if (chainId == 31337) {
-        vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock")
-        //log(vrfCoordinatorV2Mock)
-
+        vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2_5Mock")
         vrfCoordinatorV2Address = await vrfCoordinatorV2Mock.getAddress()
 
-        // log(vrfCoordinatorV2Address)
         const transactionResponse = await vrfCoordinatorV2Mock.createSubscription()
         const transactionReceipt = await transactionResponse.wait(1)
 
-        subscriptionId = transactionReceipt.logs[0].args.subId
-        // Fund the subscription
-        // Our mock makes it so we don't actually have to worry about sending fund
+        subscriptionId = transactionReceipt.logs[0].args.subId.toString()
+
         await vrfCoordinatorV2Mock.fundSubscription(subscriptionId, FUND_AMOUNT)
+        log("-------------------------------------------------------------")
+        log(`Funded subscription with ID: ${subscriptionId} with ${FUND_AMOUNT.toString()} WEI`)
+        log("-------------------------------------------------------------")
     } else {
         vrfCoordinatorV2Address = networkConfig[chainId]["vrfCoordinatorV2"]
         subscriptionId = networkConfig[chainId]["subscriptionId"]
     }
+
     const waitBlockConfirmations = developmentChains.includes(network.name)
         ? 1
         : VERIFICATION_BLOCK_CONFIRMATIONS
 
-    log("----------------------------------------------------")
-    const arguments = [
+    const args = [
         vrfCoordinatorV2Address,
         subscriptionId,
         networkConfig[chainId]["gasLane"],
@@ -47,21 +46,18 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     ]
     const raffle = await deploy("Raffle", {
         from: deployer,
-        args: arguments,
+        args: args,
         log: true,
         waitConfirmations: waitBlockConfirmations,
     })
 
-    // Ensure the Raffle contract is a valid consumer of the VRFCoordinatorV2Mock contract.
     if (developmentChains.includes(network.name)) {
-        const vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock")
         await vrfCoordinatorV2Mock.addConsumer(subscriptionId, raffle.address)
     }
 
-    // Verify the deployment
     if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
         log("Verifying...")
-        await verify(raffle.address, arguments)
+        await verify(raffle.address, args)
     }
 
     log("Enter lottery with command:")
