@@ -1,55 +1,60 @@
-const { getNamedAccounts, ethers, deployments, network } = require("hardhat")
-const { developmentChains, networkConfig } = require("../../helper-hardhat-config")
-require("@nomicfoundation/hardhat-chai-matchers")
 const { assert, expect } = require("chai")
+const { getNamedAccounts, ethers, network } = require("hardhat")
+const { developmentChains } = require("../../helper-hardhat-config")
 
 developmentChains.includes(network.name)
     ? describe.skip
-    : describe("Raffle Unit Tests", function () {
-          let raffle, deployer, raffleEntranceFee
+    : describe("Raffle Staging Tests", function () {
+          let raffle, raffleEntranceFee, deployer, accounts
 
           beforeEach(async function () {
               deployer = (await getNamedAccounts()).deployer
               raffle = await ethers.getContract("Raffle", deployer)
               raffleEntranceFee = await raffle.getEntranceFee()
+              accounts = await ethers.getSigners()
           })
 
           describe("fulfillRandomWords", function () {
               it("works with live Chainlink Keepers and Chainlink VRF, we get a random winner", async function () {
-                  // enter the raffle
                   console.log("Setting up test...")
                   const startingTimeStamp = await raffle.getLastTimeStamp()
-                  const accounts = await ethers.getSigner()
 
-                  await new Promise(async function (resolve, reject) {
-                      raffle.once("WinnerPiked", async function () {
-                          console.log("WinnerPiked event fired")
-                          resolve
+                  console.log("Setting up Listener...")
+                  await new Promise(async (resolve, reject) => {
+                      raffle.once("WinnerPicked", async () => {
+                          console.log("WinnerPicked event fired!")
                           try {
-                              //add asserts
                               const recentWinner = await raffle.getRecentWinner()
                               const raffleState = await raffle.getRaffleState()
-                              const winnerEndingBalance = await accounts[0].getBalance()
-                              const endingTimeStamp = await getLastTimeStamp()
+                              const winnerEndingBalance = BigInt(
+                                  await ethers.provider.getBalance(accounts[0].address),
+                              )
+                              const endingTimeStamp = await raffle.getLastTimeStamp()
 
                               await expect(raffle.getPlayer(0)).to.be.reverted
                               assert.equal(recentWinner.toString(), accounts[0].address)
                               assert.equal(raffleState, 0)
-                              assert.equal(
-                                  winnerEndingBalance.toString(),
-                                  winnerStartingBalance.add(raffleEntranceFee).toString(),
+                              assert(
+                                  winnerEndingBalance === winnerStartingBalance + raffleEntranceFee,
+                                  `Ending balance ${winnerEndingBalance} is not equal to starting balance ${winnerStartingBalance} plus raffle entrance fee ${raffleEntranceFee}`,
                               )
                               assert(endingTimeStamp > startingTimeStamp)
                               resolve()
                           } catch (error) {
-                              console.log("error")
-                              reject(e)
+                              console.log(error)
+                              reject(error)
                           }
                       })
+
+                      console.log("Entering Raffle...")
+                      const tx = await raffle.enterRaffle({ value: raffleEntranceFee })
+                      await tx.wait(1)
+                      console.log("Ok, time to wait...")
+                      const winnerStartingBalance = BigInt(
+                          await ethers.provider.getBalance(accounts[0].address),
+                      )
+                      console.log(`Starting balance of the first account: ${winnerStartingBalance}`)
                   })
-                  // Then entering the raffle
-                  await raffle.enterRaffle({ value: raffleEntranceFee })
-                  const winnerStartingBalance = await accounts[0].getBalance()
               })
           })
       })

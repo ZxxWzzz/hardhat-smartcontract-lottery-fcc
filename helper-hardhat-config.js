@@ -21,7 +21,7 @@ const networkConfig = {
         keepersUpdateInterval: "30",
         raffleEntranceFee: "10000000000000000", // 0.01 ETH
         callbackGasLimit: "500000", // 500,000 gas
-        vrfCoordinatorv2: "0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B",
+        vrfCoordinatorV2: "0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B",
     },
     1: {
         name: "mainnet",

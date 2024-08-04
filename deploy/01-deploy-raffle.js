@@ -6,7 +6,7 @@ const {
 } = require("../helper-hardhat-config")
 const { verify } = require("../utils/verify")
 
-const FUND_AMOUNT = "2000000000000000000" // 1 ETH
+const FUND_AMOUNT = "100000000000000000000" // 10 ETH
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy, log } = deployments
@@ -26,9 +26,15 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         await vrfCoordinatorV2Mock.fundSubscription(subscriptionId, FUND_AMOUNT)
         log("-------------------------------------------------------------")
         log(`Funded subscription with ID: ${subscriptionId} with ${FUND_AMOUNT.toString()} WEI`)
+
+        const subscriptionInfo = await vrfCoordinatorV2Mock.getSubscription(subscriptionId)
+        log(
+            `Subscription ID: ${subscriptionId} has a balance of ${subscriptionInfo.balance.toString()} WEI`,
+        )
         log("-------------------------------------------------------------")
     } else {
         vrfCoordinatorV2Address = networkConfig[chainId]["vrfCoordinatorV2"]
+        console.log(vrfCoordinatorV2Address)
         subscriptionId = networkConfig[chainId]["subscriptionId"]
     }
 

@@ -131,11 +131,6 @@ const { assert, expect } = require("chai")
                   await network.provider.request({ method: "evm_mine", params: [] })
                   raffleAddress = await raffle.getAddress()
                   vrfCoordinatorV2MockAddress = await vrfCoordinatorV2Mock.getAddress()
-
-                  const initialBalance = await ethers.provider.getBalance(
-                      vrfCoordinatorV2MockAddress,
-                  )
-                  console.log(`Initial VRFCoordinator Balance: ${initialBalance.toString()}`)
               })
               it("can only be called after performupkeep", async function () {
                   await expect(
@@ -162,17 +157,12 @@ const { assert, expect } = require("chai")
                   const tx = await raffle.performUpkeep("0x")
                   const txReceipt = await tx.wait(1)
 
-                  // 打印所有日志
-                  //   console.log(txReceipt.logs)
-
                   // 获取正确的 requestId 日志
                   const requestId = txReceipt.logs[1].args.requestId
-                  //   console.log("performUpkeep done. Request ID:", requestId.toString())
 
                   let vrfCoordinatorBalance = await ethers.provider.getBalance(
                       vrfCoordinatorV2MockAddress,
                   )
-                  console.log("VRFCoordinator Balance:", vrfCoordinatorBalance.toString()) // 输出当前余额
 
                   await new Promise(async function (resolve, reject) {
                       raffle.once("WinnerPicked", async function () {
